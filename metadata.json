@@ -1,0 +1,6 @@
+{
+  "name": "Free AI Chat",
+  "description": "A clean, modern chat interface powered by Gemini 3 Flash. No external API key required.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
