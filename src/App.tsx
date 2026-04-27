@@ -4,14 +4,21 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Sparkles, Trash2, ArrowDownCircle, Loader2 } from 'lucide-react';
+import { Send, User, Bot, Sparkles, Trash2, ArrowDownCircle, Loader2, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// Initializing the AI
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// AI initialization helper
+const getAI = () => {
+  // Use VITE_ prefix as a fallback or the direct process.env with safety check
+  const apiKey = (import.meta as any).env?.GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    return null;
+  }
+  return new GoogleGenerativeAI(apiKey);
+};
 
 interface Message {
   id: string;
@@ -60,25 +67,27 @@ export default function App() {
     setError(null);
 
     try {
-      const model = "gemini-3-flash-preview";
-      const contents = messages.map(msg => ({
+      const genAI = getAI();
+      if (!genAI) {
+        throw new Error("API key not configured. Check Secrets.");
+      }
+      
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash", // More stable model identifier
+        systemInstruction: "You are Aura AI, a helpful and clever assistant. Respond in the user's language. Use markdown for clarity (bold, lists, code blocks). Keep responses concise and insightful.",
+      });
+
+      const history = messages.map(msg => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }]
       }));
-      contents.push({
-        role: 'user',
-        parts: [{ text: userMessage.content }]
+
+      const chat = model.startChat({
+        history: history,
       });
 
-      const response = await ai.models.generateContent({
-        model,
-        contents,
-        config: {
-          systemInstruction: "You are a helpful and clever AI assistant. Respond in the same language as the user. Use markdown formatting for clarity (bold, lists, code blocks). Keep responses concise and insightful.",
-        }
-      });
-
-      const aiText = response.text || "Sorry, I couldn't generate a response.";
+      const result = await chat.sendMessage(userMessage.content);
+      const aiText = result.response.text();
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
